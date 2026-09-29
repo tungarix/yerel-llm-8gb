@@ -6,8 +6,9 @@ Content is in Turkish; this README is the map.
 
 ## What's here
 
-- **[kurulum.md](kurulum.md)** — the setup: two models, one 8 GB card, the exact llama.cpp flags and the before/after RAM/VRAM numbers that justified each one.
-- **[bulgu-iq2-halusinasyon.md](bulgu-iq2-halusinasyon.md)** — a finding: at very low bit-quantization (IQ2_M), a model's factual recall breaks down before its coding ability does — including a concrete, reproducible example of confident, invented facts.
+- **[kurulum.md](kurulum.md)** — the setup: two models, one 8 GB card, where the model files come from, and the llama.cpp flags with the before/after RAM numbers that justified each one.
+- **[scripts/](scripts/)** — the Windows `cmd` launchers I actually use: start either model, check which one is running, stop it. They refuse to start a second model while one is already loaded. Paths are overridable with `LLAMA_DIR` and `MODEL`.
+- **[bulgu-iq2-halusinasyon.md](bulgu-iq2-halusinasyon.md)** — a single observation, not a benchmark: the 35B model at IQ2_M invented a non-existent person and defended it when challenged. The note spells out what this does and doesn't show — model size and quantization are confounded.
 
 ## Hardware
 
@@ -19,6 +20,10 @@ Content is in Turkish; this README is the map.
 | Runtime | llama.cpp (CUDA build) |
 
 The binding constraint turned out to be **RAM**, not VRAM — see kurulum.md.
+
+## Tried it on your machine?
+
+Numbers from one laptop aren't a benchmark. If you ran this setup (or a variant) on your own hardware, [share your numbers](https://github.com/tungarix/yerel-llm-8gb/issues/new?template=olcum.md) — GPU, RAM, flags, tokens/s. English or Turkish, both fine.
 
 ## License
 

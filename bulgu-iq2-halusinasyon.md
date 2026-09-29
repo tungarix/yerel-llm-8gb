@@ -1,42 +1,50 @@
 # Bulgu: IQ2 kuantizasyonunda olgusal halüsinasyon
 
-**Tek gözlem, tek makine — sıkı bir kıyaslama değil.** Ama somut, tekrarlanabilir ve
-kararımı değiştirdi, o yüzden yazıyorum.
+**Tek gözlem, tek makine — kıyaslama değil.** Tekrar denenmedi. Yine de kurulumdaki
+iş bölümünü değiştirdi, o yüzden yazıyorum.
 
 ## Ne oldu
 
-Kodlama modelim olan Qwen3.6-35B-A3B'yi (IQ2_M kuantizasyon, 2.7 bit/ağırlık) bir futbol
-konusunda sohbette test ederken, model **gerçekte var olmayan bir futbolcu ismi** uydurdu:
-"Sergen Yılmaz" — iki gerçek Türk futbolcusunun (Sergen Yalçın, Arda Turan'ın kuşağından
-başka bir isim) ismini birbirine karıştırarak üretilmiş, hiç var olmamış bir isim.
+Kodlama modelim Qwen3.6-35B-A3B'ye (IQ2_M kuantizasyon, ~2.7 bit/ağırlık) futbolla
+ilgili bir soru sordum. Model **gerçekte var olmayan bir futbolcu ismi** verdi:
+"Sergen Yılmaz". İsim, iki gerçek ismin karışımı gibi duruyor.
 
-Asıl ilginç kısım itiraz edildiğinde oldu: modele bu ismin uydurma olduğunu söyleyince,
-model **ısrar etti** — geri adım atmadı, özür dilemedi, "haklısınız" demedi. Kendi
-uydurduğu ismi savundu.
+İsmin uydurma olduğunu söyleyince model geri adım atmadı, **ısrar etti**.
 
-## Neden önemli
+## Nasıl yorumladım
 
-İsim karıştırma (gerçek parçalardan sahte bir bütün üretmek) + hataya itiraz edilince
-ısrar etmek (sahte özgüven) birlikte, çok düşük bit kuantizasyonunun tipik imzası.
-Modelin dil/kod yeteneği IQ2_M'de gözle görülür bozulmuyor — ama olgusal hafıza ve
-"bilmiyorum" diyebilme yeteneği bozuluyor.
+İki şey birlikte göründü:
 
-## Sonuç: iki modele ayırdım
+- **İsim karıştırma:** gerçek parçalardan, gerçekte olmayan bir bütün üretmek.
+- **Sahte özgüven:** itiraz edilince düzeltmek yerine savunmak.
+
+Aynı modelde kod işinde belirgin bir bozulma görmedim. Bunu çok düşük bit
+kuantizasyonunun olgusal hafızayı koddan daha çok bozmasına bağladım — ama aşağıdaki
+karışık değişken yüzünden bu bir **yorum**, kanıtlanmış bir neden değil.
+
+## Karışık değişken
+
+Karşılaştırdığım iki kurulum iki şeyde birden farklı:
+
+| | Kodlama | Planlama |
+|---|---|---|
+| Model | Qwen3.6-35B-A3B (MoE) | Qwen3.5-9B |
+| Kuantizasyon | IQ2_M (~2.7 bit) | Q4_K_XL (~4.8 bit) |
+
+Yani planlama modelinin olgu işinde daha güvenilir görünmesinin nedeni kuantizasyon da
+olabilir, modelin kendisi de. Bu gözlem ikisini ayıramaz.
+
+Ayırmanın yolu: **aynı modeli iki kuantizasyonda** (ör. 9B'yi IQ2_M ve Q4_K_XL) aynı
+olgu sorularıyla denemek ve "doğru / uydurma / bilmiyorum" oranlarını saymak. Henüz
+yapmadım.
+
+## Pratik sonuç
 
 | İş türü | Model | Neden |
 |---|---|---|
-| Kod yazma | 35B @ IQ2_M | Kod yeteneği bu kuantizasyonda hâlâ iyi |
-| Olgu/muhakeme gerektiren planlama | 9B @ Q4_K_XL (~4.8 bit/ağırlık) | Daha yüksek bit, daha az halüsinasyon |
+| Kod yazma | 35B @ IQ2_M | Kod işinde sorun görmedim, 64K bağlam sığıyor |
+| Olgu/muhakeme gerektiren planlama | 9B @ Q4_K_XL | Olgu işinde daha güvenilir göründü (bkz. karışık değişken) |
 
-Pratik kural: **olgu, tarih, isim gerektiren hiçbir şeyi düşük-bit kuantize bir modele
-sorma** — ya belge ver (bağlam-içi okuma bu modellerde iyi çalışıyor) ya da web
-aramasına bağla. Kuantize model hafızasından değil, önüne konan metinden doğru cevap
-üretir.
-
-## Metodoloji notu
-
-Bu tek bir oturumda yakalanan tek bir örnek — sistematik bir kuantizasyon-halüsinasyon
-kıyaslaması yapmadım (henüz). Genellenebilirliği test etmek istersem sıradaki adım aynı
-soruyu farklı kuantizasyon seviyelerinde (Q4, Q5, Q8) tekrarlayıp halüsinasyon oranını
-saymak olurdu. Şu an için bu, "IQ2_M'i olgu gerektiren işte kullanma" kararımın kaynağı —
-kanıtın kendisi, iddia değil.
+Kuantizasyon bu bulgunun nedeni olsa da olmasa da şu kural geçerli: **olgu, tarih, isim
+için yerel modelin hafızasına güvenme.** Belgeyi ver (bağlam içi okuma bu modellerde
+iyi: 32K bağlamda 3 iğneli geri getirim testi 3/3) ya da web aramasına bağla.

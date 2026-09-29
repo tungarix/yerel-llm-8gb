@@ -1,0 +1,4 @@
+# cmd.exe, ^ ile satir devaminda LF satir sonlarinda bozulabiliyor
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.md  text eol=lf

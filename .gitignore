@@ -1,0 +1,11 @@
+# Model agirliklari: GitHub 100 MB ustunu reddeder, buraya ait degiller
+*.gguf
+*.bin
+*.safetensors
+*.pt
+models/
+
+# Calisma ciktilari ve sirlar
+*.log
+.env
+.env.*

@@ -17,46 +17,89 @@ Bağlayıcı kısıt **VRAM değil RAM** çıktı — bayrakların çoğu bunun 
 
 8 GB VRAM'e ikisi birden sığmıyor, o yüzden hiçbir zaman ikisi aynı anda açık değil:
 
-| Rol | Model | Boyut | Bağlam | Not |
-|---|---|---|---|---|
-| Kodlama | Qwen3.6-35B-A3B-UD-**IQ2_M** | 10.73 GB | 65536 | `--reasoning off`, thinking kapalı |
-| Planlama | Qwen3.5-9B-UD-**Q4_K_XL** | 5.56 GB | 32768 | `--reasoning on`, tamamen VRAM'de |
+| Rol | Model | Dosya | Bağlam | Port | Not |
+|---|---|---|---|---|---|
+| Kodlama | Qwen3.6-35B-A3B-UD-**IQ2_M** | 10.73 GB | 65536 | 8080 | `--reasoning off`, MoE katmanlarının bir kısmı CPU'da |
+| Planlama | Qwen3.5-9B-UD-**Q4_K_XL** | 5.56 GB | 32768 | 8081 | `--reasoning on`, tamamen VRAM'de |
 
-Her ikisi de `--parallel 1` ile, tek istemci için. Başlatma/durdurma script'leri diğer
-model açıksa başlatmayı reddediyor — kazara ikisini birden açmamak için.
+Her ikisi de `--parallel 1` ile, tek istemci için, yalnız `127.0.0.1`'de dinliyor.
+
+### Modeller nereden
+
+İkisi de [Unsloth](https://huggingface.co/unsloth)'un GGUF kuantizasyonları (dosya
+başlığındaki `general.quantized_by` alanı: Unsloth). Orijinal modeller:
+[Qwen/Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B) ve
+[Qwen/Qwen3.5-9B](https://huggingface.co/Qwen/Qwen3.5-9B). Dosya adları yukarıdaki
+tablodakiyle birebir aynı; lisans için orijinal model sayfasına bak.
+
+## Script'ler
+
+[`scripts/`](scripts/) klasöründe, Windows `cmd` için:
+
+| Script | Ne yapar |
+|---|---|
+| `durum.cmd` | Hangi model açık, ne kadar RAM/VRAM kullanıyor |
+| `start-qwen.cmd` | Kodlama modelini başlatır (64K bağlam) |
+| `start-qwen-lean.cmd` | Kodlama modeli, hafif: 32K bağlam, `NCMOE=20`. Boş RAM 1.5 GB altına düştüğünde |
+| `start-plan.cmd` | Planlama modelini başlatır |
+| `stop-qwen.cmd` | Çalışan **tüm** `llama-server.exe` süreçlerini kapatır |
+
+Akış her zaman aynı: **durum → (açıksa) durdur → başlat.** Başlatma script'leri başka bir
+model açıksa başlamayı reddediyor.
+
+Varsayılan yollar `C:\llama.cpp\llama-server.exe` ve `C:\llama.cpp\models\`. Farklıysa
+çağırmadan önce ez:
+
+```cmd
+set "LLAMA_DIR=D:\araclar\llama.cpp"
+set "MODEL=D:\modeller\Qwen3.6-35B-A3B-UD-IQ2_M.gguf"
+start-qwen.cmd
+```
+
+`CTX`, `NCMOE` ve `PORT` da aynı şekilde ezilebilir. Tam bayrak listesi script'lerin içinde.
 
 ## Ölçülmüş bayraklar
 
-Varsayılan ayarlarla başlayıp tek tek ölçerek düşürdüğüm tepe bellek kullanımı:
+Varsayılan ayarlarla başlayıp tek tek ölçerek düşürdüğüm tepe bellek kullanımı
+(kodlama modeli):
 
 | Bayrak | Ne yapıyor | Önce | Sonra |
 |---|---|---|---|
-| `--cache-ram 1024` | Varsayılan 8192 MiB'lık disk önbelleğini sınırlar (sayfalama dosyasına düşmeyi engeller) | 8.20 GB RAM | 7.05 GB RAM |
-| `--load-mode none` | `--n-cpu-moe` ile mmap'in çift tamponlanmasını (page cache + CPU tensor kopyası) engeller | 8.75 GB RAM | 5.34 GB RAM |
-| `--cache-type-k/v q8_0` | KV önbelleğini yarıya indirir | 32K bağlam f16'dan daha az VRAM | ölçülebilir kalite kaybı yok |
+| `--cache-ram 1024` | Sunucunun RAM'deki prompt önbelleğini sınırlar; varsayılan 8192 MiB sistemi sayfalama dosyasına itiyordu | 8.20 GB RAM | 7.05 GB RAM, hız kaybı yok |
+| `--load-mode none` | `--n-cpu-moe` ile birlikte mmap'in çift tamponlamasını (page cache + CPU tensör kopyası) kapatır | 8.75 GB RAM | 5.34 GB RAM |
+| `--cache-type-k/v q8_0` | KV önbelleğini yarıya indirir | 32K bağlam, f16 KV | 64K bağlam, q8_0 KV — yine daha az VRAM |
 
-`--n-cpu-moe 22` 64K bağlamla eşleşiyor. `q8_0` KV kuantizasyonunda 32K bağlamda 3 iğneli
-geri getirim testi hâlâ 3/3 isabet — kalite kaybı gözlenmedi.
+`--n-cpu-moe 22` 64K bağlamla eşleşiyor. `q8_0` KV'de 32K bağlamda 3 iğneli geri
+getirim testi 3/3 isabet — kalite kaybı gözlemedim.
 
-`--reasoning off` bu build'de kullanımdan kalkmış bir eski bayrağın (`--chat-template-kwargs
-'{"enable_thinking":false}'`) yerini alıyor. Planlama modelinde `enable_thinking: false`
-verilmezse thinking token bütçesi tükeniyor ve `content` boş dönüyor.
+Qwen3.6-35B-A3B hibrit dikkatli bir MoE: 40 katmanın yalnız 10'u tam dikkat, kalanı
+doğrusal (GatedDeltaNet). KV önbelleği bu yüzden küçük ve 35B'lik bir model 8 GB'lık
+karta bu sayede sığıyor.
+
+## Planlama modeliyle çalışırken
+
+- Sunucu düşünme açık başlıyor. Kısa, yapılandırılmış işlerde (özetleme, sınıflandırma)
+  istekte `enable_thinking: false` gönder — yoksa token bütçesi düşünmeye gidiyor ve
+  `content` boş dönebiliyor.
+- `frequency_penalty` vermeyince tekrar döngüsüne düştüğünü gördüm.
+- Prompt'a konan somut few-shot örneklerini cevap diye geri yazabiliyor.
+- `--reasoning off/on`, bu build'de kaldırılan
+  `--chat-template-kwargs '{"enable_thinking":false}'` kullanımının yerini alıyor.
 
 ## Neden iki farklı model
 
-IQ2_M (2.7 bit/ağırlık) kod yeteneğinden çok **olgusal hatırlamayı** eziyor — ayrıntı ve
-somut örnek: [bulgu-iq2-halusinasyon.md](bulgu-iq2-halusinasyon.md). Bu yüzden olgu/muhakeme
-önemli olan planlama işini 9B@Q4_K_XL'e (~4.8 bit/ağırlık), kod işini 35B@IQ2'ye ayırdım.
+35B@IQ2_M ile yaptığım bir sohbette olgusal bir uydurma yakaladım; kod işinde benzer bir
+bozulma görmedim. Bu yüzden olgu/muhakeme gerektiren işi 9B@Q4_K_XL'e, kodu 35B@IQ2'ye
+ayırdım. Nedenin kuantizasyon mu model mi olduğu ayrılamıyor — ayrıntı:
+[bulgu-iq2-halusinasyon.md](bulgu-iq2-halusinasyon.md).
 
 ## Sınırlar
 
-- **Araştırma bir model sorunu değil.** Hiçbir yerel model gerçek zamanlı araştırma
-  yapamaz — geri getirime (retrieval) ihtiyacı var, hafızaya değil. Belge verilmeden ya
-  da web aramasına bağlanmadan olgu/tarih/isim sorma.
-- Bu ölçümler **tek makinede, tek kullanım deseninde** alındı — farklı donanımda veya
-  farklı bağlam uzunluğunda sayılar değişir. İddia genel bir kıyaslama değil, benim
-  ölçtüğüm sayılar.
-
-## Lisans
-
-MIT.
+- **Araştırma bir model sorunu değil.** Hiçbir yerel model araştırma yapamaz — geri
+  getirime (retrieval) ihtiyacı var, hafızaya değil. Belge vermeden ya da web aramasına
+  bağlamadan olgu/tarih/isim sorma.
+- **Arka planda kalan sunucu:** llama-server penceresiz başlatılırsa sessizce ~7 GB RAM ve
+  VRAM tutmaya devam ediyor. Emin değilsen `durum.cmd`, kapatmak için `stop-qwen.cmd`.
+- Bu ölçümler **tek makinede, tek kullanım deseninde** alındı; farklı donanımda ya da
+  bağlam uzunluğunda sayılar değişir. Genel bir kıyaslama değil, benim ölçtüğüm sayılar.
+  Kendi makinende denediysen [sayılarını paylaş](https://github.com/tungarix/yerel-llm-8gb/issues/new?template=olcum.md).
