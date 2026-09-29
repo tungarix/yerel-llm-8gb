@@ -19,8 +19,8 @@ Bağlayıcı kısıt **VRAM değil RAM** çıktı — bayrakların çoğu bunun 
 
 | Rol | Model | Dosya | Bağlam | Port | Not |
 |---|---|---|---|---|---|
-| Kodlama | Qwen3.6-35B-A3B-UD-**IQ2_M** | 10.73 GB | 65536 | 8080 | `--reasoning off`, MoE katmanlarının bir kısmı CPU'da |
-| Planlama | Qwen3.5-9B-UD-**Q4_K_XL** | 5.56 GB | 32768 | 8081 | `--reasoning on`, tamamen VRAM'de |
+| Kodlama | Qwen3.6-35B-A3B-UD-**IQ2_M** | 10.73 GiB | 65536 | 8080 | `--reasoning off`, MoE katmanlarının bir kısmı CPU'da |
+| Planlama | Qwen3.5-9B-UD-**Q4_K_XL** | 5.56 GiB | 32768 | 8081 | `--reasoning on`, tamamen VRAM'de |
 
 Her ikisi de `--parallel 1` ile, tek istemci için, yalnız `127.0.0.1`'de dinliyor.
 
@@ -58,10 +58,25 @@ start-qwen.cmd
 
 `CTX`, `NCMOE` ve `PORT` da aynı şekilde ezilebilir. Tam bayrak listesi script'lerin içinde.
 
+## Hız
+
+`llama-bench`, script'lerle aynı bayraklar, 5 tekrar (ayrıntı, koşullar ve ham çıktı:
+[olcum/2026-09-30-hiz.md](olcum/2026-09-30-hiz.md)):
+
+| | 9B Q4_K_XL | 35B-A3B IQ2_M |
+|---|---:|---:|
+| Prompt işleme, 512 token (tok/s) | 1741.65 ± 30.03 | 861.76 ± 21.67 |
+| Prompt işleme, 4096 token (tok/s) | 1710.32 ± 3.70 | 824.72 ± 7.54 |
+| Üretim, 128 token (tok/s) | 54.19 ± 0.55 | 45.98 ± 0.65 |
+
+Sunucu üzerinden gerçek istekte üretim hızı bundan ~%4 düşük çıktı (52.1 ve 43.9 tok/s).
+
 ## Ölçülmüş bayraklar
 
 Varsayılan ayarlarla başlayıp tek tek ölçerek düşürdüğüm tepe bellek kullanımı
-(kodlama modeli):
+(kodlama modeli). **Not:** Bu değerleri Eylül başında aldım; ölçüm yöntemi ve birim
+kaydedilmedi, bu yüzden 2026-09-30'daki bellek anlık görüntüsüyle
+([olcum/](olcum/2026-09-30-hiz.md#bellek-anlık-görüntüsü)) doğrudan karşılaştırılamaz.
 
 | Bayrak | Ne yapıyor | Önce | Sonra |
 |---|---|---|---|
